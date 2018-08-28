@@ -1,5 +1,6 @@
 import pygame, sys
 from pygame.locals import *
+from noise import pnoise2, snoise2
 
 #constants representing colours
 BLACK = (0,   0,   0  )
@@ -31,9 +32,14 @@ tilemap = [
         ]
 
 #useful game dimensions
-TILESIZE  = 40
-MAPWIDTH  = 3
-MAPHEIGHT = 5
+TILESIZE  = 20
+MAPWIDTH  = 60
+MAPHEIGHT = 60
+
+TERRAIN_TYPES = 3
+
+octaves = 2
+freq = 16.0 * octaves
 
 #set up the display
 pygame.init()
@@ -54,9 +60,11 @@ while True:
         #loop through each column in the row
         for column in range(MAPWIDTH):
             #draw the resource at that position in the tilemap, using the correct colour
+            t = (int(snoise2(row / freq, column / freq, octaves) * 2 + 2))
+            print(t)
             pygame.draw.rect(
                     DISPLAYSURF,
-                    colours[tilemap[row][column]],
+                    colours[t],
                     (column*TILESIZE,row*TILESIZE,TILESIZE,TILESIZE)
                     )
 
