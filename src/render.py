@@ -1,14 +1,8 @@
-import pygame, sys, time
+import pygame, sys,os, time, argparse
 from pygame.locals import *
 from pathlib import Path
 from drawable import House, Street, Tower
 
-
-#constants representing the different resources
-E = -1
-H = 0
-S = 1
-T = 2
 
 class Render:
 
@@ -43,39 +37,11 @@ class Render:
             if (x, y) in self.context['occupied']:
                     self.context['occupied'].remove((x, y))
                     continue
-            if tile == 0:
+            if tile == 'H':
                 self.house.draw((x,y), self.context)
-            if tile == S:
+            if tile == 'S':
                 self.street.draw((x,y), self.context)
-            if tile == T:
+            if tile == 'T':
                 self.tower.draw((x,y), self.context)
             pygame.display.update()
 
-
-
-
-
-#a dictionary linking resources to colours
-
-#a list representing our tilemap
-tilemap = [
-        [ S, S, S,S, S, S,S, S, S,S, S, S ],
-        [ S, H, H,S, H, H,S, H, H,S, H, H ],
-        [ S, H, H,S, H, H,S, H, H,S, H, H ],
-        [ S, S, S,S, S, S,S, S, S,S, S, S ],
-        [ S, H, H,S, T, T,S, H, H,S, H, H ],
-        [ S, H, H,S, T, T,S, H, H,S, H, H ],
-        [ S, S, S,S, S, S,S, S, S,S, S, S ],
-        [ S, H, H,S, H, H,S, T, T,S, H, H ],
-        [ S, H, H,S, H, H,S, T, T,S, H, H ],
-        [ S, S, S,S, S, S,S, S, S,S, S, S ],
-        [ S, H, H,S, H, H,S, H, H,S, H, H ],
-        [ S, H, H,S, H, H,S, H, H,S, H, H ],
-        [ S, S, S,S, S, S,S, S, S,S, S, S ],
-        ]
-
-
-r = Render(tilemap)
-r.render()
-while True:
-    pass

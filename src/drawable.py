@@ -56,7 +56,7 @@ class Street(Drawable):
         x,y = pos
         def isStreet(dx=0, dy=0):
             if 0<= (x+dx) < len(tilemap) and 0<= (y+dy) < len(tilemap[0]):
-                return tilemap[x+dx][y+dy] == 1
+                return tilemap[x+dx][y+dy] == 'S'
             else:
                 return False
         def isStraightX():
@@ -93,7 +93,7 @@ class House(Drawable):
 
         x,y = pos
         tilemap = context['tilemap']
-        if x+1 >= len(tilemap) or tilemap[x+1][y] != 0:
+        if x+1 >= len(tilemap) or tilemap[x+1][y] != 'H':
             return
         context['occupied'].append((x+1,y))
 
