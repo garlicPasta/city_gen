@@ -40,12 +40,15 @@ class Drawable(object):
         w,h = self.unit_size
         return [(x+xd, y+yd) for xd in range(1,w) for yd in range(1,h)]
 
+class Tower(Drawable):
+
+    def __init__(self):
+        super().__init__('tiles/skyscrapers_1unit.png', (34, 66))
 
 class Street(Drawable):
 
     def __init__(self):
         super().__init__('tiles/streets.png', (34, 21))
-
 
 
     def draw(self, pos, context):
