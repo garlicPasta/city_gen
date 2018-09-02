@@ -47,6 +47,37 @@ class Street(Drawable):
         super().__init__('tiles/streets.png', (34, 21))
 
 
+
+    def draw(self, pos, context):
+        tilemap = context['tilemap']
+        x,y = pos
+        def isStreet(dx=0, dy=0):
+            if 0<= (x+dx) < len(tilemap) and 0<= (y+dy) < len(tilemap[0]):
+                return tilemap[x+dx][y+dy] == 1
+            else:
+                return False
+        def isStraightX():
+            return isStreet(dx=1) and isStreet(dx=-1) and not isStreet(dy=-1) and not isStreet(dy=1)
+        def isStraightY():
+            return not isStreet(dx=1) and not isStreet(dx=-1) and isStreet(dy=-1) and isStreet(dy=1)
+
+        if isStraightX():
+            tile_index = 3
+        elif isStraightY():
+            tile_index = 2
+        else:
+            tile_index = 1
+
+        x_iso, y_iso = _twoDToIso( (pos[0]*16 , pos[1]*16))
+
+        context['display'].blit(
+                self.tiles[tile_index],
+                (x_iso, y_iso - self.tile_size[1])
+                )
+
+        return tilemap
+
+
 class House(Drawable):
 
     def __init__(self):
