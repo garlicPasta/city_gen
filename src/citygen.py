@@ -1,29 +1,38 @@
 import pygame, sys
 import numpy as np
 import scipy
+import time
 from random import randint
 from noise import snoise2, pnoise2, snoise3
 from pygame.locals import *
+
 
 TILESIZE = 8
 
 #constants representing colours
 RED   = (200,   0,   0  )
+GREY  = (125,   125, 125)
 BROWN = (153, 76,  0  )
 GREEN = (0,   255, 0  )
 BLUE  = (0,   0,   255)
+
+BLACK = (0,0,0)
 
 #constants representing the different resources
 WATER = 1
 GRASS = 2
 MOUNTAIN  = 3
 HUMAN = 10
+STREET = 20
+BUILDING = 30
+
 #a dictionary linking resources to colours
 colours =   {
                 GRASS    : GREEN,
                 WATER    : BLUE,
                 MOUNTAIN : BROWN,
-                HUMAN    : RED
+                HUMAN    : RED,
+                STREET   : GREY
             }
 
 def draw_map(map, DISPLAYSURF, TILESIZE):
@@ -45,7 +54,7 @@ def generate_terrain(MAPWIDTH, MAPHEIGHT):
 
 # Get a 3x3 grid around the position
 # NOTE: doesnt make sense on the border
-def get_neighborhood(map, xpos, ypos):
+def get_neighbourhood(map, xpos, ypos):
     nbhood = np.zeros((3,3))
     for y in range(nbhood.shape[0]):
         for x in range(nbhood.shape[1]):
@@ -58,7 +67,7 @@ def clean_map(map):
     while changed == True:
         for y in range(1,map.shape[0]-1):
             for x in range(1,map.shape[1]-1):
-                nbhood = get_neighborhood(map,x,y)
+                nbhood = get_neighbourhood(map,x,y)
                 if (map[y][x] == GRASS) and (np.count_nonzero(nbhood == WATER) >= 7):
                     map[y][x] = WATER
                     changed = True
@@ -76,9 +85,8 @@ def circle_matrix(r):
     A = np.arange(-r,r+1)**2
     dists = np.sqrt(A[:,None] + A)
     return (dists < r+0.5).astype(int)
-print(circle_matrix(4))
 
-
+# Assign a score to a position on the map
 def score_location(map, citysize, xpos, ypos):
     map_chunk = map[ypos-citysize:ypos+citysize+1,xpos-citysize:xpos+citysize+1] # The selected part of the map
     mask = np.multiply(circle_matrix(citysize), map_chunk) # only the circle
@@ -91,9 +99,8 @@ def score_location(map, citysize, xpos, ypos):
     score = 0
     score += counter[GRASS]
     score -= counter[MOUNTAIN]
-    score += np.log(counter[WATER]/(np.pi*citysize**2)-desired_water)
+    score += np.log(abs(counter[WATER]/(np.pi*citysize**2)-desired_water))
     return score
-print(score_location(map, 10, 50,50))
 
 # Assign a score value to each buildable tile (GRASS)
 def score_locations(map,citysize):
@@ -107,6 +114,39 @@ def score_locations(map,citysize):
                 scores[y][x] = 0
     return scores
 
+
+class Agent:
+    def __init__(self, startx, starty):
+        self.x = startx
+        self.y = starty
+
+class StreetBuilder(Agent):
+    def __init__(self, startx, starty):
+        agent.__init__(self, startx, starty)
+
+    def changeEnv(self, map):
+        map[self.y][self.x] = STREET # build street
+        nbh = get_neighbourhood(map, self.x, self.y)
+        street_top   = False
+        street_down  = False
+        street_left  = False
+        street_right = False
+        if map[self.y-1][self.x] == STREET:
+            street_top = True
+        if map[self.y][self.x-1] == STREET:
+            street_left = True
+        if map[self.y+1][self.x] == STREET:
+            street_down = True
+        if map[self.y][self.x+1] == STREET:
+            street_right = True
+
+
+        direction = randint(1,2)
+        if direction == 1:
+            self.x += 1
+        else:
+            self.y += 1
+
 octaves = 6
 freq = 10.0 * octaves
 
@@ -118,11 +158,12 @@ clean_map(map) # removes bad terrain
 
 scoremap = score_locations(map,15)
 maxel = np.unravel_index(np.argmax(scoremap, axis=None), scoremap.shape)
-print(maxel[0])
 #set up the display
 pygame.init()
 
 DISPLAYSURF = pygame.display.set_mode((map.shape[1]*TILESIZE,map.shape[0]*TILESIZE))
+
+str = StreetBuilder(maxel[1], maxel[0])
 
 while True:
     #get all the user events
@@ -136,7 +177,14 @@ while True:
     draw_map(map, DISPLAYSURF, TILESIZE)
     pygame.draw.rect(
             DISPLAYSURF,
-            RED,
+            BLACK,
             (maxel[1]*TILESIZE,maxel[0]*TILESIZE,TILESIZE,TILESIZE))
+    pygame.draw.rect(
+            DISPLAYSURF,
+            RED,
+            (str.x*TILESIZE,str.y*TILESIZE,TILESIZE,TILESIZE))
+
+    str.changeEnv(map)
+    time.sleep(1)
     #update the display
     pygame.display.update()
