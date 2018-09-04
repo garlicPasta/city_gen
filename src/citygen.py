@@ -30,6 +30,7 @@ MOUNTAIN  = 3
 HUMAN = 10
 STREET = 20
 BUILDING = 30
+CENTRUM = 40
 
 #a dictionary linking resources to colours
 colours =   {
@@ -37,7 +38,8 @@ colours =   {
                 WATER    : BLUE,
                 MOUNTAIN : BROWN,
                 HUMAN    : RED,
-                STREET   : GREY
+                STREET   : GREY,
+                CENTRUM  : BLACK
             }
 
 def draw_map(map, DISPLAYSURF, TILESIZE):
@@ -58,7 +60,7 @@ def generate_terrain(MAPWIDTH, MAPHEIGHT):
     return terrain_map
 
 # Get a 3x3 grid around the position
-# NOTE: doesnt make sense on the border
+# NOTE:0 doesnt make sense on the border
 def get_neighbourhood(map, xpos, ypos):
     nbhood = np.zeros((3,3))
     for y in range(nbhood.shape[0]):
@@ -85,6 +87,31 @@ def clean_map(map):
                 else:
                     changed = False
 
+def generate_mainstreet(map):
+    # Generate random external 'mapentrance'
+    connected_side = randint(1,4)
+    if connected_side % 2 == 1:
+        extern = np.array([randint(0, WIDTH), 0])
+    else:
+        extern = np.array([0, randint(0, HEIGHT)])
+
+    # Create the route from the entrance to the citycentrum
+    distance = np.linalg.norm(extern-np.array([citycenter[1], citycenter[0]]))
+    sections = int(round(distance/10))
+    # Create a point every ~10 tiles with a small random noise
+    # These are the control points for a beziercurve fomring the street
+    points = [extern]
+    for i in range(1,sections):
+        points += [((1-i/sections)*extern+i/sections*citycenter).astype(int) + np.random.randint(-4,4,size=2)]
+    points += [citycenter]
+
+    # Create a beziercurve with points as control points
+    curve = bezier.Curve(np.asfortranarray(points, dtype = float).T, degree=2)
+    for i in range(2*int(1.1*curve.length)):
+        pt = curve.evaluate(i/(2*curve.length)).astype(int) # Evaluate gleichverteilt über die kurve
+        map[pt[1][0]][pt[0][0]] = STREET
+
+# Fill up the diagonal pieces of the street
 def fix_mainstreet(map):
     for y in range(1,map.shape[0]-1):
         for x in range(1,map.shape[1]-1):
@@ -121,7 +148,7 @@ def score_location(map, citysize, xpos, ypos):
     return score
 
 # Assign a score value to each buildable tile (GRASS)
-def score_locations(map,citysize):
+def score_locations(map, citysize):
     scores = np.zeros(map.shape)
     for y in range(citysize,map.shape[0]-citysize):
         for x in range(citysize,map.shape[1]-citysize):
@@ -132,17 +159,30 @@ def score_locations(map,citysize):
                 scores[y][x] = 0
     return scores
 
-"""
-Erst straße random durch das Terrain legen und anhand dessen den Startpunkt wählen
-Oder erst Punkt wählen in den dann eine Straße von außen führt
+# range is the influence range of streets and should influence the sparseness of the city
+def score_citytile(map, r, xpos, ypos):
+    desired_street = 0.15 # Desired amount of streettiles in the given radius
+    map_chunk = map[ypos-r:ypos+r+1,xpos-r:xpos+r+1] # The selected part of the map
+    mask = np.multiply(circle_matrix(r), map_chunk) # only the circle
+    counter = dict.fromkeys(colours)
+    for TILETYPE in colours:
+        counter[TILETYPE] = np.sum(mask==TILETYPE)
+    score = 0
+    zielstrasse = desired_street*np.pi*r**2
+    score += zielstrasse-abs(counter[STREET]-zielstrasse)
+    return score
 
--> radius um mittelpnkt
-
-Stadtteilmittelpunkt wird vom Planer festgelegt
-->
-
-"""
-
+# Assign each tile the 'buildability'/how nice it is to build there
+def score_city(map, r):
+    scores = np.zeros(map.shape)
+    for y in range(r,map.shape[0]-r):
+        for x in range(r,map.shape[1]-r):
+            # check if buildable
+            if map[y][x] == GRASS:
+                scores[y][x] = score_citytile(map,r,x,y)
+            else:
+                scores[y][x] = 0
+    return scores
 
 class Agent:
     def __init__(self, startx, starty):
@@ -151,6 +191,9 @@ class Agent:
         self.type = 'agent'
     # Intercat with the enviroment
     def changeEnv(self, map):
+        pass
+    # change position
+    def move(self, map):
         pass
     def __str__(self):
         return self.type + ' at [' + str(self.x) + ', ' + str(self.y) + ']'
@@ -167,76 +210,59 @@ class StreetBuilder(Agent):
         super().__init__(startx, starty)
         self.type = 'streetbuilder'
 
+    # Ziel: maximiere platz für Häuser/bebaubarkeit
     def changeEnv(self, map):
         map[self.y][self.x] = STREET # build street
-        nbh = get_neighbourhood(map, self.x, self.y)
-        street_top   = False
-        street_down  = False
-        streetagents_left  = False
-        street_right = False
-        if map[self.y-1][self.x] == STREET:
-            street_top = True
-        if map[self.y][self.x-1] == STREET:
-            street_left = True
-        if map[self.y+1][self.x] == STREET:
-            street_down = True
-        if map[self.y][self.x+1] == STREET:
-            street_right = True
 
-        direction = randint(1,10)
-        if direction <= 7:
-            self.x += randint(-1,1)
-        else:
-            self.y += randint(-1,1)
+        map_chunk = map[ypos-3:ypos+3+1,xpos-3:xpos+3+1] # The selected part of the map
+        mask = np.multiply(circle_matrix(3), map_chunk) # only the circle/ the neighbourhood
+
+
+
+
+    def move(map):
+        pass
 
 
 octaves = 6
 freq = 10.0 * octaves
 
 map = generate_terrain(WIDTH,HEIGHT)
-# NOTE: erode and dilate
+# TODO:10 erode and dilate
 clean_map(map) # removes bad terrain
 
 scoremap = score_locations(map,15)
-plt.rcParams['figure.figsize'] = [10, 10]
-plt.matshow(scoremap, interpolation='nearest', cmap='jet')
-plt.colorbar()
-plt.show()
 
+# Find maximum score
 max = np.unravel_index(np.argmax(scoremap, axis=None), scoremap.shape)
 citycenter = np.array([max[1],max[0]])
-print(max)
+map[max[0]][max[1]] = STREET
 
-# Generate random external 'mapentrance'
-connected_side = randint(1,4)
-if connected_side % 2 == 1:
-    extern = np.array([randint(0, WIDTH), 0])
-else:
-    extern = np.array([0, randint(0, HEIGHT)])
-
-# Create the route from the entrance to the citycentrum
-distance = np.linalg.norm(extern-np.array([citycenter[1], citycenter[0]]))
-sections = int(round(distance/10))
-# Create a point every ~10 tiles with a small random noise
-# These are the control points for a beziercurve fomring the street
-points = [extern]
-for i in range(1,sections):
-    points += [((1-i/sections)*extern+i/sections*citycenter).astype(int) + np.random.randint(-4,4,size=2)]
-points += [citycenter]
-
-# Create a beziercurve with points as control points
-curve = bezier.Curve(np.asfortranarray(points, dtype = float).T, degree=2)
-for i in range(2*int(curve.length)):
-    pt = curve.evaluate(i/(2*curve.length)).astype(int) # Evaluate gleichverteilt über die kurve
-    map[pt[0][0]][pt[1][0]] = STREET
-
+generate_mainstreet(map)
 fix_mainstreet(map)
 
+number_streets = 5 # Number of outgoing streets
 agents = []
-#agents += [Explorer(citycenter[1], citycenter[0])]
-#agents += [StreetBuilder(citycenter[1], citycenter[0])]
 
+#for i in range(number_streets):
+#    agents += [StreetBuilder(citycenter[0], citycenter[1])]
 
+"""
+# TODO: Auch möglich: Erst straße random durch das Terrain legen und anhand dessen den Startpunkt wählen
+
+-> radius um mittelpnkt
+
+Stadtteilmittelpunkt wird vom Planer festgelegt
+->
+
+"""
+cityscore = score_city(map, 4)
+# Plot scores
+plt.rcParams['figure.figsize'] = [10, 10]
+#plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
+plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
+plt.colorbar()
+plt.show()
 
 #set up the display
 pygame.init()
@@ -248,17 +274,13 @@ while True:
         if event.type == QUIT:
             #and the game and close the window
             pygame.quit()
-            os._exit(1)
+            sys.exit()
 
     draw_map(map, DISPLAYSURF, TILESIZE)
     pygame.draw.rect(
             DISPLAYSURF,
             BLACK,
-            (citycenter[1]*TILESIZE,citycenter[0]*TILESIZE,TILESIZE,TILESIZE))
-    pygame.draw.rect(
-            DISPLAYSURF,
-            BLACK,
-            (extern[1]*TILESIZE,extern[0]*TILESIZE,TILESIZE,TILESIZE))
+            (citycenter[0]*TILESIZE,citycenter[1]*TILESIZE,TILESIZE,TILESIZE))
 
     for agent in agents:
         agent.changeEnv(map)
