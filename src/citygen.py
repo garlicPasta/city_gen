@@ -193,7 +193,7 @@ class Agent:
     def changeEnv(self, map):
         pass
     # change position
-    def move(self, map):
+    def move(self, map, cityscore):
         pass
     def __str__(self):
         return self.type + ' at [' + str(self.x) + ', ' + str(self.y) + ']'
@@ -212,16 +212,45 @@ class StreetBuilder(Agent):
 
     # Ziel: maximiere platz für Häuser/bebaubarkeit
     def changeEnv(self, map):
+        buildable = True # Is this tile allowd to be a street
+
+        # Vier 2x2 quadrate um die Position herum abtasten
+        quadrate = []
+        for i in range(4): # left to right, top to bottom
+            quadrate += [np.array([[map[self.y-1+(i>1), self.x-1+i%2], map[self.y-1+(i>1), self.x+i%2]],
+                                   [map[self.y+(i>1), self.x-1+i%2], map[self.y+(i>1), self.x+i%2]]])]
+
+         for q in quadrate:
+             if np.sum(q == STREET) > 2:
+                 buildable = False
+
+        envi = [map[self.y-1][self.x-1], # oben links
+                map[self.y+1][self.x-1], # unten links
+                map[self.y-1][self.x+1], # oben rechts
+                map[self.y+1][self.x+1]] # unten rechts
+        #if envi[0] == STREET
         map[self.y][self.x] = STREET # build street
+        return quadrate
 
-        map_chunk = map[ypos-3:ypos+3+1,xpos-3:xpos+3+1] # The selected part of the map
-        mask = np.multiply(circle_matrix(3), map_chunk) # only the circle/ the neighbourhood
+    def move(self, map, cityscore):
+        directions = [cityscore[self.y-1][self.x], # oben
+                      cityscore[self.y+1][self.x], # unten
+                      cityscore[self.y][self.x-1], # links
+                      cityscore[self.y][self.x+1]] # rechts
+        directed = np.argmax(directions)
+        sorted = np.sort(directions)
+        goto = randint(2,3)
+        chosen = sorted[goto]
+        direct = directions.index(chosen)
+        if direct == 0 and map[self.y-1][self.x] == GRASS:
+            self.y -= 1
+        elif direct == 1 and map[self.y+1][self.x] == GRASS:
+            self.y += 1
+        elif direct == 2 and map[self.y][self.x-1] == GRASS:
+            self.x -= 1
+        elif direct == 3 and map[self.y][self.x+1] == GRASS:
+            self.x += 1
 
-
-
-
-    def move(map):
-        pass
 
 
 octaves = 6
@@ -241,22 +270,13 @@ map[max[0]][max[1]] = STREET
 generate_mainstreet(map)
 fix_mainstreet(map)
 
-number_streets = 5 # Number of outgoing streets
+number_streets = 5 # Number of outgoing streets/ starting agents
 agents = []
+for i in range(number_streets):
+    agents += [StreetBuilder(citycenter[0], citycenter[1])]
 
-#for i in range(number_streets):
-#    agents += [StreetBuilder(citycenter[0], citycenter[1])]
-
-"""
-# TODO: Auch möglich: Erst straße random durch das Terrain legen und anhand dessen den Startpunkt wählen
-
--> radius um mittelpnkt
-
-Stadtteilmittelpunkt wird vom Planer festgelegt
-->
-
-"""
 cityscore = score_city(map, 4)
+
 # Plot scores
 plt.rcParams['figure.figsize'] = [10, 10]
 #plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
@@ -283,12 +303,13 @@ while True:
             (citycenter[0]*TILESIZE,citycenter[1]*TILESIZE,TILESIZE,TILESIZE))
 
     for agent in agents:
+        agent.move(map, cityscore)
         agent.changeEnv(map)
         pygame.draw.rect(
                 DISPLAYSURF,
                 RED,
                 (agent.x*TILESIZE,agent.y*TILESIZE,TILESIZE,TILESIZE))
-
+    cityscore = score_city(map, 4)
     time.sleep(1)
     #update the display
     pygame.display.update()
