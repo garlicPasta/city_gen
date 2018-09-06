@@ -4,7 +4,7 @@ from random import randint
 
 def _twoDToIso(pos):
     x, y =  pos
-    return (200+x - y, 200+ (x + y) // 2)
+    return (16*48 + x - y, 16*16 + (x + y) // 2)
 
 class Drawable(object):
 
@@ -17,10 +17,10 @@ class Drawable(object):
     def draw(self, pos, context):
         x_iso, y_iso = _twoDToIso( (pos[0]*16 , pos[1]*16))
 
-        context['display'].blit(
+        context['to_render'].append((
                 self.tiles[randint(0, len(self.tiles)-1)],
                 (x_iso, y_iso - self.tile_size[1])
-                )
+                ))
         context['display'].set_at((x_iso, y_iso) , pygame.Color('red'))
 
     def _load_tileset(self, filename, width, height):
@@ -39,6 +39,11 @@ class Drawable(object):
         x,y = pos
         w,h = self.unit_size
         return [(x+xd, y+yd) for xd in range(1,w) for yd in range(1,h)]
+
+class Grass(Drawable):
+
+    def __init__(self):
+        super().__init__('tiles/terrain/grass_0.png', (34, 21))
 
 class Tower(Drawable):
 
@@ -73,10 +78,10 @@ class Street(Drawable):
 
         x_iso, y_iso = _twoDToIso( (pos[0]*16 , pos[1]*16))
 
-        context['display'].blit(
+        context['to_render'].append((
                 self.tiles[tile_index],
                 (x_iso, y_iso - self.tile_size[1])
-                )
+                ))
 
         return tilemap
 
@@ -99,11 +104,7 @@ class House(Drawable):
 
         x_iso, y_iso = _twoDToIso((pos[0] * 16, pos[1] *16))
 
-        context['display'].blit(
+        context['to_render'].append((
                 self.tiles[randint(0, len(self.tiles)-1)],
-                (
-                    x_iso,
-                    y_iso - self.tile_size[1] + self.unit_size[1] * 8 )
-                )
-        context['display'].set_at((x_iso, y_iso) , pygame.Color('green'))
-
+                ( x_iso, y_iso - self.tile_size[1] + self.unit_size[1] * 8 )
+                ))
