@@ -4,6 +4,7 @@ import scipy as sci
 import os
 from scipy.interpolate import splprep, splev
 import time
+import random
 from random import randint
 from noise import snoise2, pnoise2, snoise3
 from pygame.locals import *
@@ -23,12 +24,12 @@ BROWN = (153, 76,  0  )
 GREEN = (0,   255, 0  )
 BLUE  = (0,   0,   255)
 BLACK = (0,0,0)
+YELLOW = (200, 200, 0)
 
 #constants representing the different resources
 WATER = 1
 GRASS = 2
 MOUNTAIN  = 3
-HUMAN = 10
 STREET = 20
 BUILDING = 30
 
@@ -37,9 +38,8 @@ colours =   {
                 GRASS    : GREEN,
                 WATER    : BLUE,
                 MOUNTAIN : BROWN,
-                HUMAN    : RED,
                 STREET   : GREY,
-                BUILDING    : LIGHTRED
+                BUILDING : LIGHTRED
             }
 
 def draw_map(map, DISPLAYSURF, TILESIZE):
@@ -174,6 +174,7 @@ def score_street(map, r, xpos, ypos, street_density, citycenter):
     score += zielstrasse-abs(counter[STREET]-zielstrasse) # es soll eine gewisse Straßendichte erreicht werden
     score += 0.1*counter[GRASS] # Auch genug Baufläche muss vorhanden sein
     score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
+    score += counter[BUILDING]
     return score
 
 # Assign each tile the 'buildability'/how nice it is to build there
@@ -195,11 +196,16 @@ def score_building(map, building_range, xpos, ypos):
     counter = dict.fromkeys(colours)
     for TILETYPE in colours:
         counter[TILETYPE] = np.sum(mask==TILETYPE)
+    map_chunk2 = map[ypos-2*building_range:ypos+2*building_range+1,xpos-2*building_range:xpos+2*building_range+1] # The selected part of the map
+    mask2 = np.multiply(circle_matrix(building_range), map_chunk) # only the circle
+    counter2 = dict.fromkeys(colours)
+    for TILETYPE in colours:
+        counter2[TILETYPE] = np.sum(mask2==TILETYPE)
     score = 0
     score += counter[WATER] # Building near water is preferred
-    score += counter[STREET] # You need to build along streets
-    score += counter[GRASS] # Auch genug Baufläche muss vorhanden sein
-    score -= counter[BUILDING] # Es ist attraktiver an stellen zu bauen, wo mehr Fläche vorhanden ist
+    score += counter2[STREET] # You need to build along streets
+    score += counter2[GRASS] # Auch genug Baufläche muss vorhanden sein
+    score -= 0.5*counter[BUILDING] # Es ist attraktiver an stellen zu bauen, wo mehr Fläche vorhanden ist
     #score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
     return score
 
@@ -231,6 +237,7 @@ def street_allowed(map, xpos, ypos):
         buildable = False
     return buildable
 
+
 class Agent:
     def __init__(self, startx, starty):
         self.x = startx
@@ -246,6 +253,7 @@ class Agent:
     def __str__(self):
         return self.type + ' at [' + str(self.x) + ', ' + str(self.y) + ']'
 
+
 # HouseBuilder -> bis zu abstand zwei von straße bauen
 # StreetBuilder -> im abstand eins von Häusern score erhöhen
 class HouseBuilder(Agent):
@@ -254,18 +262,53 @@ class HouseBuilder(Agent):
         self.type = 'housebuilder'
 
     def changeEnv(self, map):
-        # is grass nearby? if so build a house
-        if map[self.y][self.x] == GRASS:
-            # TODO: Buildable function
-                map[self.y-1][self.x] = BUILDING # build houses
+        # is grass nearby? if so build a house; Only build inside a circle of radius 2
+        map_chunk = map[self.y-2:self.y+2+1,self.x-2:self.x+2+1] # The selected part of the map
+        mask      = np.multiply(circle_matrix(2), map_chunk) # only the circle
+        if np.any(mask == GRASS):
+            build_at  = random.choice(np.argwhere(mask == GRASS))-2 # Pick a random buildable location, relative to the current location
+            map[self.y+build_at[0]][self.x+build_at[1]] = BUILDING # build a house
 
-    def move(self, map, cityscore):
-        directions = [map[self.y-1][self.x], # oben
-                      map[self.y+1][self.x], # unten
-                      map[self.y][self.x-1], # links
-                      map[self.y][self.x+1]] # rechts
-        # can only move on streets
+    def move(self, map, builderscore):
+        if self.x == WIDTH-2 or self.x == 2 or self.y == HEIGHT-2 or self.y == 2:
+            self.alive = False
+            print(str(self) + ' died.')
 
+        mapdir = [map[self.y-1][self.x], # oben, 0
+                  map[self.y+1][self.x], # unten, 1
+                  map[self.y][self.x-1], # links, 2
+                  map[self.y][self.x+1]] # rechts, 3
+        directions = [builderscore[self.y-1][self.x], # oben, 0
+                  builderscore[self.y+1][self.x], # unten, 1
+                  builderscore[self.y][self.x-1], # links, 2
+                  builderscore[self.y][self.x+1]] # rechts, 3
+        pos_dir = np.argwhere(np.array(mapdir) == STREET).flatten() # Allowed directions
+        pdirections = [] # Builderscore for the possible directions
+        for p in pos_dir:
+            pdirections += [builderscore[self.y-(p<2)*(1-2*(p%2))][self.x-(p>1)*(1-2*(p%2))]]
+        sorted = np.sort(pdirections)
+        if len(pdirections) > 1:
+            goto = randint(1,10)
+            if goto > 2:
+                chosen = sorted[len(pdirections)-1]
+            else:
+                chosen = sorted[len(pdirections)-2]
+            direct = directions.index(chosen)
+        elif len(pdirections) == 1:
+            direct = directions.index(pdirections[0])
+        else:
+            direct = 4
+        # NOTE: can only move on streets
+        if direct == 0:
+            self.y -= 1
+        elif direct == 1:
+            self.y += 1
+        elif direct == 2:
+            self.x -= 1
+        elif direct == 3:
+            self.x += 1
+        else:
+            pass
 
 
 class StreetBuilder(Agent):
@@ -287,7 +330,6 @@ class StreetBuilder(Agent):
                       cityscore[self.y+1][self.x], # unten
                       cityscore[self.y][self.x-1], # links
                       cityscore[self.y][self.x+1]] # rechts
-        # TODO: Rule out
         # Rule out the positions where we are not allowed to build
         for i in range(4):
             if not(street_allowed(map, self.x+(2*(i%2)-1)*(i>1), self.y+(2*(i%2)-1)*(i<2) )):
@@ -299,7 +341,7 @@ class StreetBuilder(Agent):
             chosen = sorted[3]
         else:
             chosen = sorted[2]
-        direct = directions.index(chosen)# Vier 2x2 quadrate um die Position herum abtasten
+        direct = directions.index(chosen)
 
         if direct == 0: #and map[self.y-1][self.x] == GRASS:
             self.y -= 1
@@ -331,13 +373,14 @@ fix_mainstreet(map)
 
 street_density = 0.1
 number_street_builder = 5 # Number of outgoing streets/ starting agents
-number_house_builder = 5 # Number of agents that build houses
+number_house_builder = 2 # Number of agents that build houses
 
-agents = []
+street_agents = []
+house_agents  = []
 for i in range(number_street_builder):
-    agents += [StreetBuilder(citycenter[0], citycenter[1])]
+    street_agents += [StreetBuilder(citycenter[0], citycenter[1])]
 for i in range(number_house_builder):
-    agents += [HouseBuilder(citycenter[0], citycenter[1])]
+    house_agents += [HouseBuilder(citycenter[0], citycenter[1])]
 
 
 cityscore = score_streets(map, 5, street_density, citycenter)
@@ -347,9 +390,9 @@ builderscore = score_buildings(map)
 plt.rcParams['figure.figsize'] = [10, 10]
 #plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
 #plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
-plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
-plt.colorbar()
-plt.show()
+#plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
+#plt.colorbar()
+#plt.show()
 
 #set up the display
 pygame.init()
@@ -368,16 +411,28 @@ while True:
             DISPLAYSURF,
             BLACK,
             (citycenter[0]*TILESIZE,citycenter[1]*TILESIZE,TILESIZE,TILESIZE))
-
-    for agent in agents:
+    for agent in house_agents:
+        if agent.alive:
+            agent.move(map, builderscore)
+            agent.changeEnv(map)
+            pygame.draw.rect(
+                    DISPLAYSURF,
+                    YELLOW,
+                    (agent.x*TILESIZE+TILESIZE/4,agent.y*TILESIZE+TILESIZE/4,TILESIZE/2,TILESIZE/2))
+    for agent in street_agents:
         if agent.alive:
             agent.move(map, cityscore)
             agent.changeEnv(map)
             pygame.draw.rect(
                     DISPLAYSURF,
                     RED,
-                    (agent.x*TILESIZE,agent.y*TILESIZE,TILESIZE,TILESIZE))
+                    (agent.x*TILESIZE+TILESIZE/4,agent.y*TILESIZE+TILESIZE/4,TILESIZE/2,TILESIZE/2))
     cityscore = score_streets(map, 5, street_density, citycenter)
+    builderscore = score_buildings(map)
+
     time.sleep(.1)
     #update the display
+    plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
+    plt.colorbar()
+    plt.show()
     pygame.display.update()
