@@ -1,10 +1,15 @@
 import pygame
+import numpy as np
 from random import randint
 
 
 def _twoDToIso(pos):
     x, y =  pos
     return (16*48 + x - y, 16*16 + (x + y) // 2)
+
+def calc_offset(pos):
+    return ( x - y, (x + y) // 2)
+
 
 class Drawable(object):
 
