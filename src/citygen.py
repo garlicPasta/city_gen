@@ -13,6 +13,7 @@ import bezier
 TILESIZE = 6
 WIDTH    = 110
 HEIGHT   = 110
+citysize = 15
 
 #constants representing colours
 RED   = (200,   0,   0  )
@@ -131,7 +132,7 @@ def circle_matrix(r):
     return (dists < r+0.5).astype(int)
 
 # Assign a score to a position on the map
-def score_location(map, citysize, xpos, ypos):
+def score_location(map, xpos, ypos):
     map_chunk = map[ypos-citysize:ypos+citysize+1,xpos-citysize:xpos+citysize+1] # The selected part of the map
     mask = np.multiply(circle_matrix(citysize), map_chunk) # only the circle
     desired_water = 0.1 # How much water is desired
@@ -148,41 +149,61 @@ def score_location(map, citysize, xpos, ypos):
     return score
 
 # Assign a score value to each buildable tile (GRASS)
-def score_locations(map, citysize):
+def score_locations(map):
     scores = np.zeros(map.shape)
-    for y in range(citysize,map.shape[0]-citysize):
-        for x in range(citysize,map.shape[1]-citysize):
+    for y in range(citysize, map.shape[0]-citysize):
+        for x in range(citysize, map.shape[1]-citysize):
             # check if buildable
             if map[y][x] == GRASS:
-                scores[y][x] = score_location(map,citysize,x,y)
+                scores[y][x] = score_location(map, x, y)
             else:
                 scores[y][x] = 0
     return scores
 
 # range is the influence range of streets and should influence the sparseness of the city
-def score_citytile(map, r, xpos, ypos):
-    desired_street = 0.15 # Desired amount of streettiles in the given radius
+def score_citytile(map, r, xpos, ypos, street_density, citycenter):
+    # street_density = Desired amount of streettiles in the given radius / density
     map_chunk = map[ypos-r:ypos+r+1,xpos-r:xpos+r+1] # The selected part of the map
     mask = np.multiply(circle_matrix(r), map_chunk) # only the circle
     counter = dict.fromkeys(colours)
     for TILETYPE in colours:
         counter[TILETYPE] = np.sum(mask==TILETYPE)
     score = 0
-    zielstrasse = desired_street*np.pi*r**2
-    score += zielstrasse-abs(counter[STREET]-zielstrasse)
+    zielstrasse = street_density*np.pi*r**2
+    score += zielstrasse-abs(counter[STREET]-zielstrasse) # es soll eine gewisse Straßendichte erreicht werden
+    score += 0.1*counter[GRASS] # Auch genug Baufläche muss vorhanden sein
+    score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos]))
+    # Build near the citycenter
+    #score += (np.linalg.norm(citycenter-np.array([xpos, ypos])) < citysize)
     return score
 
 # Assign each tile the 'buildability'/how nice it is to build there
-def score_city(map, r):
+def score_city(map, r, street_density, citycenter):
     scores = np.zeros(map.shape)
     for y in range(r,map.shape[0]-r):
         for x in range(r,map.shape[1]-r):
             # check if buildable
             if map[y][x] == GRASS:
-                scores[y][x] = score_citytile(map,r,x,y)
+                scores[y][x] = score_citytile(map,r,x,y, street_density, citycenter)
             else:
                 scores[y][x] = 0
     return scores
+
+# Is it okay to build a street at the given position
+def street_allowed(map, xpos, ypos):
+    if map[ypos][xpos] == GRASS:
+        buildable = True # Is this tile allowd to be a street
+        # Vier 2x2 quadrate um die Position herum abtasten
+        quadrate = []
+        for i in range(4): # left to right, top to bottom
+            quadrate += [np.array([[map[ypos-1+(i>1), xpos-1+i%2], map[ypos-1+(i>1), xpos+i%2]],
+                                   [map[ypos+(i>1), xpos-1+i%2], map[ypos+(i>1), xpos+i%2]]])]
+        for q in quadrate:
+            if np.sum(q == STREET) > 2:
+                buildable = False
+    else:
+        buildable = False
+    return buildable
 
 class Agent:
     def __init__(self, startx, starty):
@@ -205,6 +226,9 @@ class Explorer(Agent):
     def changeEnv(self,map):
         pass
 
+# HouseBuilder -> bis zu abstand zwei von straße bauen
+# StreetBuilder -> im abstand eins von Häusern score erhöhen
+
 class StreetBuilder(Agent):
     def __init__(self, startx, starty):
         super().__init__(startx, starty)
@@ -212,43 +236,38 @@ class StreetBuilder(Agent):
 
     # Ziel: maximiere platz für Häuser/bebaubarkeit
     def changeEnv(self, map):
-        buildable = True # Is this tile allowd to be a street
-
-        # Vier 2x2 quadrate um die Position herum abtasten
-        quadrate = []
-        for i in range(4): # left to right, top to bottom
-            quadrate += [np.array([[map[self.y-1+(i>1), self.x-1+i%2], map[self.y-1+(i>1), self.x+i%2]],
-                                   [map[self.y+(i>1), self.x-1+i%2], map[self.y+(i>1), self.x+i%2]]])]
-
-         for q in quadrate:
-             if np.sum(q == STREET) > 2:
-                 buildable = False
-
-        envi = [map[self.y-1][self.x-1], # oben links
-                map[self.y+1][self.x-1], # unten links
-                map[self.y-1][self.x+1], # oben rechts
-                map[self.y+1][self.x+1]] # unten rechts
-        #if envi[0] == STREET
-        map[self.y][self.x] = STREET # build street
-        return quadrate
+        if map[self.y][self.x] == GRASS:
+            if street_allowed(map, self.x, self.y):
+                map[self.y][self.x] = STREET # build street
 
     def move(self, map, cityscore):
         directions = [cityscore[self.y-1][self.x], # oben
                       cityscore[self.y+1][self.x], # unten
                       cityscore[self.y][self.x-1], # links
                       cityscore[self.y][self.x+1]] # rechts
+        # TODO: Rule out
+        # Rule out the positions where we are not allowed to build
+        for i in range(4):
+            if not(street_allowed(map, self.x+(2*(i%2)-1)*(i>1), self.y+(2*(i%2)-1)*(i<2) )):
+                directions[i] = 0
+
+
         directed = np.argmax(directions)
         sorted = np.sort(directions)
-        goto = randint(2,3)
-        chosen = sorted[goto]
-        direct = directions.index(chosen)
-        if direct == 0 and map[self.y-1][self.x] == GRASS:
+        goto = randint(1,10)
+        if goto > 3:
+            chosen = sorted[3]
+        else:
+            chosen = sorted[2]
+        direct = directions.index(chosen)# Vier 2x2 quadrate um die Position herum abtasten
+
+        if direct == 0: #and map[self.y-1][self.x] == GRASS:
             self.y -= 1
-        elif direct == 1 and map[self.y+1][self.x] == GRASS:
+        elif direct == 1: #and map[self.y+1][self.x] == GRASS:
             self.y += 1
-        elif direct == 2 and map[self.y][self.x-1] == GRASS:
+        elif direct == 2: #and map[self.y][self.x-1] == GRASS:
             self.x -= 1
-        elif direct == 3 and map[self.y][self.x+1] == GRASS:
+        elif direct == 3: #and map[self.y][self.x+1] == GRASS:
             self.x += 1
 
 
@@ -260,7 +279,7 @@ map = generate_terrain(WIDTH,HEIGHT)
 # TODO:10 erode and dilate
 clean_map(map) # removes bad terrain
 
-scoremap = score_locations(map,15)
+scoremap = score_locations(map)
 
 # Find maximum score
 max = np.unravel_index(np.argmax(scoremap, axis=None), scoremap.shape)
@@ -270,12 +289,13 @@ map[max[0]][max[1]] = STREET
 generate_mainstreet(map)
 fix_mainstreet(map)
 
+street_density = 0.1
 number_streets = 5 # Number of outgoing streets/ starting agents
 agents = []
 for i in range(number_streets):
     agents += [StreetBuilder(citycenter[0], citycenter[1])]
 
-cityscore = score_city(map, 4)
+cityscore = score_city(map, 5, street_density, citycenter)
 
 # Plot scores
 plt.rcParams['figure.figsize'] = [10, 10]
@@ -309,7 +329,7 @@ while True:
                 DISPLAYSURF,
                 RED,
                 (agent.x*TILESIZE,agent.y*TILESIZE,TILESIZE,TILESIZE))
-    cityscore = score_city(map, 4)
-    time.sleep(1)
+    cityscore = score_city(map, 5, street_density, citycenter)
+    time.sleep(.1)
     #update the display
     pygame.display.update()
