@@ -17,11 +17,11 @@ citysize = 15
 
 #constants representing colours
 RED   = (200,   0,   0  )
+LIGHTRED = (255, 100, 80)
 GREY  = (125,   125, 125)
 BROWN = (153, 76,  0  )
 GREEN = (0,   255, 0  )
 BLUE  = (0,   0,   255)
-
 BLACK = (0,0,0)
 
 #constants representing the different resources
@@ -31,7 +31,6 @@ MOUNTAIN  = 3
 HUMAN = 10
 STREET = 20
 BUILDING = 30
-CENTRUM = 40
 
 #a dictionary linking resources to colours
 colours =   {
@@ -40,7 +39,7 @@ colours =   {
                 MOUNTAIN : BROWN,
                 HUMAN    : RED,
                 STREET   : GREY,
-                CENTRUM  : BLACK
+                BUILDING    : LIGHTRED
             }
 
 def draw_map(map, DISPLAYSURF, TILESIZE):
@@ -88,6 +87,7 @@ def clean_map(map):
                 else:
                     changed = False
 
+# Create a street from an external point to the citycenter
 def generate_mainstreet(map):
     # Generate random external 'mapentrance'
     connected_side = randint(1,4)
@@ -100,10 +100,11 @@ def generate_mainstreet(map):
     distance = np.linalg.norm(extern-np.array([citycenter[1], citycenter[0]]))
     sections = int(round(distance/10))
     # Create a point every ~10 tiles with a small random noise
-    # These are the control points for a beziercurve fomring the street
+    # These are the control points for a beziercurve forming the street
     points = [extern]
     for i in range(1,sections):
-        points += [((1-i/sections)*extern+i/sections*citycenter).astype(int) + np.random.randint(-4,4,size=2)]
+        # points += linesegment + random noise and correction so that the points do not land out of boundary
+        points += [(((1-i/sections)*extern+i/sections*citycenter).astype(int) + np.random.randint(-4,4,size=2)) / np.max([WIDTH,HEIGHT])*(np.max([WIDTH,HEIGHT])-8) + 4]
     points += [citycenter]
 
     # Create a beziercurve with points as control points
@@ -161,7 +162,7 @@ def score_locations(map):
     return scores
 
 # range is the influence range of streets and should influence the sparseness of the city
-def score_citytile(map, r, xpos, ypos, street_density, citycenter):
+def score_street(map, r, xpos, ypos, street_density, citycenter):
     # street_density = Desired amount of streettiles in the given radius / density
     map_chunk = map[ypos-r:ypos+r+1,xpos-r:xpos+r+1] # The selected part of the map
     mask = np.multiply(circle_matrix(r), map_chunk) # only the circle
@@ -172,19 +173,44 @@ def score_citytile(map, r, xpos, ypos, street_density, citycenter):
     zielstrasse = street_density*np.pi*r**2
     score += zielstrasse-abs(counter[STREET]-zielstrasse) # es soll eine gewisse Straßendichte erreicht werden
     score += 0.1*counter[GRASS] # Auch genug Baufläche muss vorhanden sein
-    score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos]))
-    # Build near the citycenter
-    #score += (np.linalg.norm(citycenter-np.array([xpos, ypos])) < citysize)
+    score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
     return score
 
 # Assign each tile the 'buildability'/how nice it is to build there
-def score_city(map, r, street_density, citycenter):
+def score_streets(map, r, street_density, citycenter):
     scores = np.zeros(map.shape)
     for y in range(r,map.shape[0]-r):
         for x in range(r,map.shape[1]-r):
             # check if buildable
             if map[y][x] == GRASS:
-                scores[y][x] = score_citytile(map,r,x,y, street_density, citycenter)
+                scores[y][x] = score_street(map,r,x,y, street_density, citycenter)
+            else:
+                scores[y][x] = 0
+    return scores
+
+# Assign a score telling the HouseBuilders where to go
+def score_building(map, building_range, xpos, ypos):
+    map_chunk = map[ypos-building_range:ypos+building_range+1,xpos-building_range:xpos+building_range+1] # The selected part of the map
+    mask = np.multiply(circle_matrix(building_range), map_chunk) # only the circle
+    counter = dict.fromkeys(colours)
+    for TILETYPE in colours:
+        counter[TILETYPE] = np.sum(mask==TILETYPE)
+    score = 0
+    score += counter[WATER] # Building near water is preferred
+    score += counter[STREET] # You need to build along streets
+    score += counter[GRASS] # Auch genug Baufläche muss vorhanden sein
+    score -= counter[BUILDING] # Es ist attraktiver an stellen zu bauen, wo mehr Fläche vorhanden ist
+    #score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
+    return score
+
+# Assign a housebuilder core to each tile
+def score_buildings(map, building_range = 2):
+    scores = np.zeros(map.shape)
+    for y in range(building_range, map.shape[0]-building_range):
+        for x in range(building_range, map.shape[1]-building_range):
+            # check if buildable
+            if map[y][x] == STREET:
+                scores[y][x] = score_building(map, building_range, x, y)
             else:
                 scores[y][x] = 0
     return scores
@@ -210,6 +236,7 @@ class Agent:
         self.x = startx
         self.y = starty
         self.type = 'agent'
+        self.alive = True
     # Intercat with the enviroment
     def changeEnv(self, map):
         pass
@@ -219,15 +246,27 @@ class Agent:
     def __str__(self):
         return self.type + ' at [' + str(self.x) + ', ' + str(self.y) + ']'
 
-class Explorer(Agent):
-    def __init__(self, startx, starty):
-        super().__init__(startx, starty)
-        self.type = 'explorer'
-    def changeEnv(self,map):
-        pass
-
 # HouseBuilder -> bis zu abstand zwei von straße bauen
 # StreetBuilder -> im abstand eins von Häusern score erhöhen
+class HouseBuilder(Agent):
+    def __init__(self, startx, starty):
+        super().__init__(startx, starty)
+        self.type = 'housebuilder'
+
+    def changeEnv(self, map):
+        # is grass nearby? if so build a house
+        if map[self.y][self.x] == GRASS:
+            # TODO: Buildable function
+                map[self.y-1][self.x] = BUILDING # build houses
+
+    def move(self, map, cityscore):
+        directions = [map[self.y-1][self.x], # oben
+                      map[self.y+1][self.x], # unten
+                      map[self.y][self.x-1], # links
+                      map[self.y][self.x+1]] # rechts
+        # can only move on streets
+
+
 
 class StreetBuilder(Agent):
     def __init__(self, startx, starty):
@@ -241,6 +280,9 @@ class StreetBuilder(Agent):
                 map[self.y][self.x] = STREET # build street
 
     def move(self, map, cityscore):
+        if self.x == WIDTH-1 or self.x == 1 or self.y == HEIGHT-1 or self.y == 1:
+            self.alive = False
+            print(str(self) + ' died.')
         directions = [cityscore[self.y-1][self.x], # oben
                       cityscore[self.y+1][self.x], # unten
                       cityscore[self.y][self.x-1], # links
@@ -251,8 +293,6 @@ class StreetBuilder(Agent):
             if not(street_allowed(map, self.x+(2*(i%2)-1)*(i>1), self.y+(2*(i%2)-1)*(i<2) )):
                 directions[i] = 0
 
-
-        directed = np.argmax(directions)
         sorted = np.sort(directions)
         goto = randint(1,10)
         if goto > 3:
@@ -271,7 +311,7 @@ class StreetBuilder(Agent):
             self.x += 1
 
 
-
+# Terrain parameters
 octaves = 6
 freq = 10.0 * octaves
 
@@ -290,17 +330,24 @@ generate_mainstreet(map)
 fix_mainstreet(map)
 
 street_density = 0.1
-number_streets = 5 # Number of outgoing streets/ starting agents
-agents = []
-for i in range(number_streets):
-    agents += [StreetBuilder(citycenter[0], citycenter[1])]
+number_street_builder = 5 # Number of outgoing streets/ starting agents
+number_house_builder = 5 # Number of agents that build houses
 
-cityscore = score_city(map, 5, street_density, citycenter)
+agents = []
+for i in range(number_street_builder):
+    agents += [StreetBuilder(citycenter[0], citycenter[1])]
+for i in range(number_house_builder):
+    agents += [HouseBuilder(citycenter[0], citycenter[1])]
+
+
+cityscore = score_streets(map, 5, street_density, citycenter)
+builderscore = score_buildings(map)
 
 # Plot scores
 plt.rcParams['figure.figsize'] = [10, 10]
 #plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
-plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
+#plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
+plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
 plt.colorbar()
 plt.show()
 
@@ -323,13 +370,14 @@ while True:
             (citycenter[0]*TILESIZE,citycenter[1]*TILESIZE,TILESIZE,TILESIZE))
 
     for agent in agents:
-        agent.move(map, cityscore)
-        agent.changeEnv(map)
-        pygame.draw.rect(
-                DISPLAYSURF,
-                RED,
-                (agent.x*TILESIZE,agent.y*TILESIZE,TILESIZE,TILESIZE))
-    cityscore = score_city(map, 5, street_density, citycenter)
+        if agent.alive:
+            agent.move(map, cityscore)
+            agent.changeEnv(map)
+            pygame.draw.rect(
+                    DISPLAYSURF,
+                    RED,
+                    (agent.x*TILESIZE,agent.y*TILESIZE,TILESIZE,TILESIZE))
+    cityscore = score_streets(map, 5, street_density, citycenter)
     time.sleep(.1)
     #update the display
     pygame.display.update()
