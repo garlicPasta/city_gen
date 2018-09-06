@@ -1,7 +1,7 @@
 import pygame, sys,os, time, argparse
 from pygame.locals import *
 from pathlib import Path
-from drawable import House, Street, Tower
+from drawable import House, Street, Tower, Grass
 
 
 class Render:
@@ -14,11 +14,13 @@ class Render:
         self.context = {
                 'tilemap': tilemap,
                 'occupied': [],
-                'display': pygame.display.set_mode((800, 600), 0, 32)
+                'display': pygame.display.set_mode((1800, 1400), 0, 32),
+                'to_render': []
                 }
         self.house = House()
         self.street = Street()
         self.tower = Tower()
+        self.grass = Grass()
 
 
     def _handle_events(self):
@@ -27,7 +29,8 @@ class Render:
                 pygame.quit()
                 sys.exit()
 
-    def render(self):
+    def renderCity(self):
+        self.context['to_render'] = []
         self._handle_events()
         iso_world_cords = [(self.tilemap[x][y] , (x,y))
                 for x in range(len(self.tilemap))
@@ -43,5 +46,12 @@ class Render:
                 self.street.draw((x,y), self.context)
             if tile == 'T':
                 self.tower.draw((x,y), self.context)
-            pygame.display.update()
+            if tile == 'G':
+                self.grass.draw((x,y), self.context)
+        self.context['display'].blits(self.context['to_render'])
+        pygame.display.update()
+
+    def loop(self):
+        while True:
+            self._handle_events()
 

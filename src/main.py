@@ -1,5 +1,6 @@
 import argparse, sys, os
 from render import Render
+from street_generator import StreetGenerator
 
 def create_arg_parser():
     arg_parser = argparse.ArgumentParser(
@@ -23,8 +24,10 @@ if __name__ == "__main__":
     if os.path.exists(parsed_args.tilemap):
         tilemap = loadTilemap(parsed_args.tilemap)
 
-    print(tilemap)
 
+    sg = StreetGenerator(100,100)
+    tilemap = sg.genStreetTileMap()
+    print(tilemap.shape)
     r = Render(tilemap)
     r.render()
     while True:
