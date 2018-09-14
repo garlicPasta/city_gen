@@ -394,7 +394,7 @@ fix_mainstreet(map)
 street_density = 0.1
 number_street_builder = 5 # Number of outgoing streets/ starting agents
 number_house_builder = 5 # Number of agents that build houses
-street_builder_lifetime = 500 # How long does one streetbuilder life
+street_builder_lifetime = 200 # How long does one streetbuilder life
 house_builder_lifetime = 15
 
 street_agents = []
@@ -414,9 +414,9 @@ runtime = 0
 plt.rcParams['figure.figsize'] = [10, 10]
 #plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
 #plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
-#plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
-#plt.colorbar()
-#plt.show()
+plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
+plt.colorbar()
+plt.show()
 
 #set up the display
 pygame.init()
