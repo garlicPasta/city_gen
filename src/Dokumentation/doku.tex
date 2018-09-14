@@ -22,6 +22,35 @@
 
 
 \section{City Generation}
+Creating fictional worlds for video games or even urban planning is a task that
+can be very expensive and time consuming when done by hand and is hard to change
+afterwards on a larger scale.
+Procedural city generation attempts to solve this problem by letting algorithms
+create the necessary environment. The challenges for generating a city may vary
+by application but almost allways has the city to be believable
+meaning for example that the structure of the street network should not seem
+artificial but rather organic and like something humans could have built.
+This can often be achieved by including some degree of randomness in the algorithm.
+For tasks like urban planning it does not only have to be believable but also
+be realistic. The levels of detail can also vary a lot as for some purposes a
+city plan may be enough but for others one might want to have different types of
+buildings or districts.
+
+When generating a city via procedural methods most of the time we want to have
+some degree of freedom concerning the flexibility and parameters we can specify.
+For exmple the size of the city or the density of the buildings and therefore the
+population may be parameters that can be used to adjust the city to our liking.
+The cit may also be generated on a terrain and should look accordingly as it
+may be desired that a city evolves around a lake or a sea. This may also vary
+since a city may normaly avoid mountains but may also favor mountains if it is
+supposed to be a small city for mountain farmers.
+
+Also dependent on the application the generation should not be computationally
+expensive as it might be important for some games to generate them in real time.
+
+
+
+
 
 
 
@@ -56,7 +85,7 @@ into it.
 Another method to generate a believable city that takes care of the street network
 and the buildings simultaniously is to simulate the process of
 city-generation. This is done in the agent based approach where different agents
-move around and interact with the enviroment based on the local perspective.
+move around and interact with the environment based on the local perspective.
 Possible agents include street builders, house builders and people investing in certain
 areas resulting in industrial quarters or housing areas. This would also add new
 buildings but can make the process more complex.
@@ -120,7 +149,7 @@ the city.
 
 We now introduce two types of agents to our map: The street builder and the house builder.
 All agents have a method telling them where to move and a method telling them
-how to change the enviroment. The way how they determine where to move is very similar.
+how to change the environment. The way how they determine where to move is very similar.
 Theoretically the agents look at each direction they can move (one tile north, east, south or west)
 and assign a score to them. We then look at the two largest scores and the agent
 moves towards one of the two directions at random with a higher chance of chosing
