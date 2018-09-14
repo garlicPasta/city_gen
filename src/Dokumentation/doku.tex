@@ -3,7 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
-\usepackage[ngerman]{babel}
+\usepackage[english]{babel}
 \usepackage{amsmath}
 \usepackage{amssymb}
 
@@ -47,9 +47,6 @@ supposed to be a small city for mountain farmers.
 
 Also dependent on the application the generation should not be computationally
 expensive as it might be important for some games to generate them in real time.
-
-
-
 
 
 
@@ -136,13 +133,13 @@ city will be built.
 
 \subsection{Agent based}
 To pursue the idea of an agent based system we would first like to have a street
-leading to the city center. This makes thematically sense since cities do not get
+leading to the center of the city. This makes thematically sense since cities do not get
 built in the middle of nothing. To do this we select a random point on the border
-of our map and connect it with a street to the city center. To do this in a way
+of our map and connect it with a street to the city center. To achieve this in a way
 that does not look artificial we equally distribute points every few tiles on
 the straight line between the point on the border and the point chosen to be our
 city center. We then move these points by a small random amount and use them as the
-control points for a bezier curve forming the street coming from the outside to
+control points if a bezier curve forming the street coming from the outside to
 the city.
 
 We now introduce two types of agents to our map: The street builder and the house builder.
@@ -184,8 +181,8 @@ at a random position in a small circle around the agent.
 All that is left to do now is to let a given amount of street builders spawn at the
 citycenter and let them start  building the street network. We gave the agents
 a lifetime to prevent them from filling up the whole map. The house builders
-have a much shorter lifetime but after dying the street builders each  spawn a
-house builder resulting in residential neighbourhoods.
+have a much shorter lifetime than the street builders but after dying at each location
+of the street builders a house builder spawns resulting in residential neighbourhoods.
 
 \begin{figure}
   \centering
