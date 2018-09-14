@@ -174,7 +174,7 @@ def score_street(map, r, xpos, ypos, street_density, citycenter):
     score += zielstrasse-abs(counter[STREET]-zielstrasse) # es soll eine gewisse Straßendichte erreicht werden
     score += 0.1*counter[GRASS] # Auch genug Baufläche muss vorhanden sein
     score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
-    score += counter[BUILDING]
+    score += 1.5*counter[BUILDING]
     return score
 
 # Assign each tile the 'buildability'/how nice it is to build there
@@ -190,33 +190,33 @@ def score_streets(map, r, street_density, citycenter):
     return scores
 
 # Assign a score telling the HouseBuilders where to go
-def score_building(map, building_range, xpos, ypos):
+def score_building(map, building_range, xpos, ypos, citycenter):
     map_chunk = map[ypos-building_range:ypos+building_range+1,xpos-building_range:xpos+building_range+1] # The selected part of the map
     mask = np.multiply(circle_matrix(building_range), map_chunk) # only the circle
     counter = dict.fromkeys(colours)
     for TILETYPE in colours:
         counter[TILETYPE] = np.sum(mask==TILETYPE)
-    map_chunk2 = map[ypos-2*building_range:ypos+2*building_range+1,xpos-2*building_range:xpos+2*building_range+1] # The selected part of the map
+    map_chunk2 = map[ypos-3*building_range:ypos+3*building_range+1,xpos-3*building_range:xpos+3*building_range+1] # The selected part of the map
     mask2 = np.multiply(circle_matrix(building_range), map_chunk) # only the circle
     counter2 = dict.fromkeys(colours)
     for TILETYPE in colours:
         counter2[TILETYPE] = np.sum(mask2==TILETYPE)
     score = 0
     score += counter[WATER] # Building near water is preferred
-    score += counter2[STREET] # You need to build along streets
+    score += 2*counter2[STREET] # You need to build along streets
     score += counter2[GRASS] # Auch genug Baufläche muss vorhanden sein
-    score -= 0.5*counter[BUILDING] # Es ist attraktiver an stellen zu bauen, wo mehr Fläche vorhanden ist
-    #score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
+    score -= counter[BUILDING] # Es ist attraktiver an stellen zu bauen, wo mehr Fläche vorhanden ist
+    score += citysize - np.linalg.norm(citycenter-np.array([xpos, ypos])) # Build near the citycenter in the given radius
     return score
 
 # Assign a housebuilder core to each tile
-def score_buildings(map, building_range = 2):
+def score_buildings(map, citycenter, building_range = 2):
     scores = np.zeros(map.shape)
     for y in range(building_range, map.shape[0]-building_range):
         for x in range(building_range, map.shape[1]-building_range):
             # check if buildable
             if map[y][x] == STREET:
-                scores[y][x] = score_building(map, building_range, x, y)
+                scores[y][x] = score_building(map, building_range, x, y, citycenter)
             else:
                 scores[y][x] = 0
     return scores
@@ -239,26 +239,32 @@ def street_allowed(map, xpos, ypos):
 
 
 class Agent:
-    def __init__(self, startx, starty):
+    def __init__(self, startx, starty, lifetime = 0):
         self.x = startx
         self.y = starty
         self.type = 'agent'
         self.alive = True
+        self.lifetime = lifetime
+        self.age = 0
     # Intercat with the enviroment
     def changeEnv(self, map):
         pass
     # change position
     def move(self, map, cityscore):
         pass
+    # one step in the simulation
+    def next_day():
+        pass
+
     def __str__(self):
         return self.type + ' at [' + str(self.x) + ', ' + str(self.y) + ']'
 
 
-# HouseBuilder -> bis zu abstand zwei von straße bauen
+# HouseBuilder -> bis zu abstand zwei von straßen bauen
 # StreetBuilder -> im abstand eins von Häusern score erhöhen
 class HouseBuilder(Agent):
-    def __init__(self, startx, starty):
-        super().__init__(startx, starty)
+    def __init__(self, startx, starty, lifetime = 10):
+        super().__init__(startx, starty, lifetime)
         self.type = 'housebuilder'
 
     def changeEnv(self, map):
@@ -310,10 +316,17 @@ class HouseBuilder(Agent):
         else:
             pass
 
+    def next_day(self, map, builderscore):
+        if self.age <= self.lifetime:
+            self.move(map, builderscore)
+            self.changeEnv(map)
+            self.age += 1
+        else:
+            self.alive = False
 
 class StreetBuilder(Agent):
-    def __init__(self, startx, starty):
-        super().__init__(startx, starty)
+    def __init__(self, startx, starty, lifetime = 500):
+        super().__init__(startx, starty, lifetime)
         self.type = 'streetbuilder'
 
     # Ziel: maximiere platz für Häuser/bebaubarkeit
@@ -352,6 +365,13 @@ class StreetBuilder(Agent):
         elif direct == 3: #and map[self.y][self.x+1] == GRASS:
             self.x += 1
 
+    def next_day(self, map, cityscore):
+        if self.age <= self.lifetime:
+            self.move(map, cityscore)
+            self.changeEnv(map)
+            self.age += 1
+        else:
+            self.alive = False
 
 # Terrain parameters
 octaves = 6
@@ -373,18 +393,22 @@ fix_mainstreet(map)
 
 street_density = 0.1
 number_street_builder = 5 # Number of outgoing streets/ starting agents
-number_house_builder = 2 # Number of agents that build houses
+number_house_builder = 5 # Number of agents that build houses
+street_builder_lifetime = 500 # How long does one streetbuilder life
+house_builder_lifetime = 15
 
 street_agents = []
 house_agents  = []
 for i in range(number_street_builder):
-    street_agents += [StreetBuilder(citycenter[0], citycenter[1])]
-for i in range(number_house_builder):
-    house_agents += [HouseBuilder(citycenter[0], citycenter[1])]
+    street_agents += [StreetBuilder(citycenter[0], citycenter[1], street_builder_lifetime)]
+#for i in range(number_house_builder):
+#    house_agents += [HouseBuilder(citycenter[0], citycenter[1])]
 
 
 cityscore = score_streets(map, 5, street_density, citycenter)
-builderscore = score_buildings(map)
+builderscore = score_buildings(map, citycenter)
+
+runtime = 0
 
 # Plot scores
 plt.rcParams['figure.figsize'] = [10, 10]
@@ -398,6 +422,7 @@ plt.rcParams['figure.figsize'] = [10, 10]
 pygame.init()
 DISPLAYSURF = pygame.display.set_mode((map.shape[1]*TILESIZE,map.shape[0]*TILESIZE))
 while True:
+    print('Day: ' + str(runtime))
     #get all the user events
     for event in pygame.event.get():
         #if the user wants to quit
@@ -413,26 +438,34 @@ while True:
             (citycenter[0]*TILESIZE,citycenter[1]*TILESIZE,TILESIZE,TILESIZE))
     for agent in house_agents:
         if agent.alive:
-            agent.move(map, builderscore)
-            agent.changeEnv(map)
+            agent.next_day(map, builderscore)
             pygame.draw.rect(
                     DISPLAYSURF,
                     YELLOW,
                     (agent.x*TILESIZE+TILESIZE/4,agent.y*TILESIZE+TILESIZE/4,TILESIZE/2,TILESIZE/2))
     for agent in street_agents:
         if agent.alive:
-            agent.move(map, cityscore)
-            agent.changeEnv(map)
+            agent.next_day(map, cityscore)
             pygame.draw.rect(
                     DISPLAYSURF,
                     RED,
                     (agent.x*TILESIZE+TILESIZE/4,agent.y*TILESIZE+TILESIZE/4,TILESIZE/2,TILESIZE/2))
+    # Evaluate where to build streets
     cityscore = score_streets(map, 5, street_density, citycenter)
-    builderscore = score_buildings(map)
+    # Evaluate where to build houses
+    builderscore = score_buildings(map, citycenter)
 
     time.sleep(.1)
     #update the display
-    plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
-    plt.colorbar()
-    plt.show()
+    #plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
+    #plt.colorbar()
+    #plt.show()
     pygame.display.update()
+
+    # Whenever housebuilder die spawn a new one at each streetbuilder
+    if runtime % house_builder_lifetime == 0:
+        print('New generation')
+        for a in street_agents:
+            if a.alive:
+                house_agents += [HouseBuilder(a.x, a.y, house_builder_lifetime)]
+    runtime += 1
