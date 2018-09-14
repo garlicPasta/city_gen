@@ -6,10 +6,12 @@
 \usepackage[english]{babel}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{listings}
+\usepackage{hyperref}
 
 \usepackage{caption}
 \usepackage{graphicx}
-\graphicspath{ {./img/} }
+\graphicspath{{./img/}}
 
 
 \title{Procedural City Generation}
@@ -94,6 +96,38 @@ on which the city should be built. We then followed with two approaches to the
 city generation and found a way to visualize the results.
 From now on everything happens on a two dimensional grid which we wish to fill
 with a natural looking city and the terrain around it.
+
+\subsection{City representation and rendering}
+
+For describing our cities we choose a very simple text based approach. The
+idea was that we can use different approaches for generating a city but
+also having a uniform format for representing the city.
+The format can be seen as a $\lbrace S,H,T,G \rbrace^{n,n}$ Char-Matrix.
+Every letter stand for one of the following classes.
+$S$ stands for a streets, $H$ represents basic houses, $G$ stands for grass 
+and $T$ stands for skyscrapers.
+An example city coding could look like in Listing~\ref{city_coding}
+\begin{lstlisting}[float,frame=lines,caption=Example city coding, label=city_coding]
+SSSSSG
+HHSTTG
+SSSSSG
+\end{lstlisting}
+
+For every class we randomly pick a tile graphic for rendering. For example every possible
+graphic of the class $T$ can be seen in figure~\ref{fig:tower_tiles}.
+The graphic we used are open-source and can be found on
+\href{https://opengameart.org}{opengameart.org}.
+
+To keep things simple we used the lightweight game engine `pygame' for drawing
+our tiles. We decided to map our city to a classic isometric perspective to
+give a more realistic impression.
+
+\begin{figure}
+    \centering
+    \includegraphics[scale = 4]{tower_tiles}
+    \caption{Some possible outcomes for a $T$ field}
+    \label{fig:tower_tiles}
+\end{figure}
 
 \subsection{Terrain generation using simplex noise}
 We decided to use three different tile types for the terrain: Water, grass and mountain.
@@ -198,12 +232,16 @@ by different types of buildings such as skyscrapers that get built in higher
 populated areas. The simulation could also be extended by adding monetary variables
 and using them to influence were different kind of buildings get built.
 
-\subsection{Procedural street networks by Voronoi diagramms}
 
-Another valid option for creating a street network is to use Voronoi diagrams.
-In our case the diagram is a partion of the 2-dimensional euclidian plane.
+\subsection{Procedural street networks by Voronoi diagrams}
+
+Another valid option for creating a street network is the use of Voronoi diagrams.
+Voronoi diagrams have the nice property that between every edge there is always a path.
+In our case the diagram is a partion of the 2D euclidean plane.
+>>>>>>> finished redering part
 Every element of the partion is a voronoi cell.
-A voronoi cell of a  $ P \subset \mathbb{R}^2 $ and a distance function $d$ is defined as
+A voronoi diagram of a  $ P \subset \mathbb{R}^2 $ and a given distance 
+function $d$ is defined as a set $V=\lbrace V_k \mid k \in [0,1,\ldots,\mid P\mid-1] \rbrace$ where:
 
 \[
     V_k=\lbrace \forall x \in \mathbb{R}^2 \mid d(x,p_k) \leq d(x,p_i)), \forall i \ne k \land p_i,p_k \in P ) \rbrace
@@ -217,48 +255,43 @@ A voronoi cell of a  $ P \subset \mathbb{R}^2 $ and a distance function $d$ is d
     \label{fig:voronoi}
 \end{figure}
 
-A voronoi digram is a the set of $V_k$ over $P$.
-Our general idea now is to create a voronoi diagram for some random points
-and to use the edges as streets in our city. Further we wan to fill up the
-space inside the cell with buildings.
+Our general idea now is,  to create a voronoi diagram for some random points
+and to use the edges as streets in our city. Further we want to fill up the
+space inside the cells with buildings. 
 
 We  start with a set of random point $P$ (uniform distribution) of a given
 size $n$. The next step would be to create the voronoi diagram $V$ of $P$.
-The datastructure of the diagram is now the set of edges of our cells.
-The span of this diagram is usally much bigger than our furthest points from $P$.
+The data structure of the diagram is now the set of edges of our cells.
+The span of this diagram is usually much bigger than our furthest points from $P$.
 So we need to specify which part of the $V$ we want to use for further processing.
-The most interresting part of the diagram happens in the smallest bounding
+The most interesting part of the diagram happens in the smallest bounding
 box of $P$. A bounding box is a rectangle which
-accomodates all points in $P$. We cut out all edge with ending points outside
+accommodates all points in $P$. We cut out all edge with ending points outside
 of the bounding box.
 
 Since our city is build of an $n\times n$ grid we need to raster our edges.
 We used the classic Bresenham line algorithm to draw lines between the edge points.
 An example can be seen in figure~\ref{fig:voronoi}.
+The lines now will be replaced with $S$ for our citycoding. Every cell sourrounded
+by streets will get an $H$.
 
-Since having just some streets filled with standart houses looks a little
+Since having cells filled with standard houses looks a little
 generic we added some random pole points to our city.
 A pole points mean that in the area around the point there is a higher change
-for having a skyscrapper instead of a standart house. The chance is represented
+for having a skyscraper $T$ instead of a standard house. The chance is represented
 by a 2D-normal distribution.
+
 The amount of pole points can be set as a parameter in our generator.
 
 \begin{figure}
     \centering
     \includegraphics[scale = 1.2]{city1}
     \caption{Possible outcome of our city generator. Here we have choosen 4 pole
-    points so we received 4 regions with skyscrappers.}
+    points so we received 4 regions with skyscrapers.}
     \label{fig:city_example}
 \end{figure}
 
 The final results can be seen in figure~\ref{fig:city_example}.
-
-
-\subsection{Plotting}
-Tileplotting mittels pygame, anfangs nur Farbkästen, dann sprites werden auch
-wenn es mal wieder Zeit ist
-
-
 
 
 \end{document}
