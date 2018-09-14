@@ -6,7 +6,12 @@ from collections import defaultdict
 from render import Render
 
 mean = [0, 0]
-cov = [[0.8, 0], [0, 0.8]]
+cov = [[1.8, 0], [0, 1.8]]
+
+POLERADIUS = 2
+DISTRICTS = 80
+CITY_SIZE = (80,80)
+POLEPOINTS = 5
 
 class District:
 
@@ -17,16 +22,17 @@ class District:
     def add_tile(self, t):
         self.cords.append(t)
 
-    def evaluate_tiles(self, pole):
+    def evaluate_tiles(self, poles):
         matrix = np.array(self.tiles)
-        x, y = np.random.multivariate_normal([0,0], cov, len(self.cords)).T * 3
+        x, y = np.random.multivariate_normal([0,0], cov, len(self.cords)).T * POLERADIUS
         rands = np.array(list(zip(x,y)))
         i = 0
         for cords in self.cords:
-            dist = np.linalg.norm(pole - np.array(cords))
             tile = "H"
-            if dist < np.linalg.norm(rands[i]):
-                tile = "T"
+            for pole in poles:
+                dist = np.linalg.norm(pole - np.array(cords))
+                if dist < np.linalg.norm(rands[i]) and tile == "H":
+                    tile = "T"
             self.tiles.append((tile, cords))
             i +=1
 
@@ -36,7 +42,7 @@ class District:
 
 class DistrictBuilder:
 
-    def build(self, streetmap):
+    def build(self, streetmap, polepoints):
         im2, contours, hierarchy = cv2.findContours(
                 streetmap.astype(np.uint8),
                 cv2.RETR_LIST,
@@ -59,7 +65,7 @@ class DistrictBuilder:
             it.iternext()
 
         for key in districts:
-            districts[key].evaluate_tiles((30,30))
+            districts[key].evaluate_tiles(polepoints)
         return districts
 
 
@@ -72,7 +78,7 @@ class StreetGenerator:
         self.districtmap = np.zeros((width, length))
 
     def genUniformPoints(self):
-        return np.random.uniform(0, max(self.width, self.length), 80).reshape(-1,2)
+        return np.random.uniform(0, max(self.width, self.length), DISTRICTS).reshape(-1,2)
 
     def genGaussPoints(self):
         x, y = np.random.multivariate_normal(mean, cov, 100).T
@@ -141,7 +147,6 @@ class StreetGenerator:
         points = points / np.max(np.abs(points))
         points[:,1] *= self.width-1
         points[:,0] *= self.length-1
-        print(points)
         return points.astype(int)
 
     def drawVoronoi(self, verts, voro):
@@ -157,7 +162,6 @@ class StreetGenerator:
         y_min, y_max = bb[1,:]
 
         def insideBB(p):
-            print(bb)
             x,y = p
             x_min, x_max = bb[0,:]
             y_min, y_max = bb[1,:]
@@ -183,7 +187,6 @@ class StreetGenerator:
                     [x_max, y_max]
                     ])
             index = np.argmin(np.linalg.norm(corners - p,axis=1))
-            print(index)
             return corners[index]
 
         f_p = []
@@ -195,7 +198,6 @@ class StreetGenerator:
             else:
                 f_p.append(handleOutSidePoint(p))
 
-        print("Filtered Points" + str(i))
         return f_p
 
     def genStreetTileMap(self):
@@ -210,7 +212,8 @@ class StreetGenerator:
         f_p = self.filterPointsByBoundingBox(verts, bbox)
         verts_norm = self.normPoints(f_p)
         self.drawVoronoi(verts_norm, vor)
-        return self.streetmap
+        np.random.shuffle(verts_norm)
+        return self.streetmap, verts_norm[:POLEPOINTS]
 
 class CityBuilder:
 
@@ -221,8 +224,8 @@ class CityBuilder:
         self.db = DistrictBuilder()
 
     def build(self):
-        streetmap = self.sg.genStreetTileMap()
-        districts = self.db.build(streetmap)
+        streetmap, polepoints = self.sg.genStreetTileMap()
+        districts = self.db.build(streetmap, polepoints)
         city = np.empty((self.width, self.length), dtype='U')
         city[:] = 'G'
         for key in districts:
@@ -233,7 +236,8 @@ class CityBuilder:
         city[streetmap.astype(bool)] = 'S'
         return city
 
-city_builder = CityBuilder(60, 60)
+w,l = CITY_SIZE
+city_builder = CityBuilder(w, l)
 tilemap = city_builder.build()
 r = Render(tilemap)
 r.renderCity()
