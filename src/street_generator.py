@@ -10,8 +10,8 @@ cov = [[1.8, 0], [0, 1.8]]
 
 POLERADIUS = 2
 DISTRICTS = 80
-CITY_SIZE = (80,80)
-POLEPOINTS = 5
+CITY_SIZE = (40,40)
+POLEPOINTS = 6
 
 class District:
 
