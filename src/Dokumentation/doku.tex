@@ -99,17 +99,15 @@ city generation and found a way to visualize the results.
 From now on everything happens on a two dimensional grid which we wish to fill
 with a natural looking city and the terrain around it.
 
-
 \subsection{Terrain generation using simplex noise}
-
+We decided to use three different tile types for the terrain: Water, grass and mountain.
 For terrain generation we used a simplex noise. This is a noise that is similar
 to the computationally more expensive Perlin noise which is used for tasks like
 procedural texture generation and is used in the terrain generation of the computer
 game minecraft. This noise is procedural generated the result is not random. To
 obtain mentioned randomness and get different terrains we generate
 a three dimensional simplex noise and use only a random two dimensional slice as our terrain.
-Using this method we get some natural looking two dimensional terrains consisting
-of three levels of heigt: water, grass and mountain.
+Using this method we get some natural looking two dimensional terrains.
 \begin{figure}
   \centering
   \includegraphics[scale = 0.2]{terrain_example}
@@ -198,7 +196,11 @@ house builder resulting in residential neighbourhoods.
 The sheer amount of parameters of approach allows for a lot of finetuning.
 It is however not easy to give meta parameters such as citysize or an amount
 of area that should be covered by buildings. However the results look very organic
-and due to the random nature not artificial.
+and due to the random nature not artificial. We made use of two different tile types
+inside the city, namely streets and buildings. This could potentially be extended
+by different types of buildings such as skyscrapers that get built in higher
+populated areas. The simulation could also be extended by adding monetary variables
+and using them to influence were different kind of buildings get built.
 
 \subsection{Procedural street generation via voronoi}
 
