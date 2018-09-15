@@ -104,7 +104,7 @@ idea was that we can use different approaches for generating a city but
 also having a uniform format for representing the city.
 The format can be seen as a $\lbrace S,H,T,G \rbrace^{n,n}$ Char-Matrix.
 Every letter stand for one of the following classes.
-$S$ stands for a streets, $H$ represents basic houses, $G$ stands for grass 
+$S$ stands for a streets, $H$ represents basic houses, $G$ stands for grass
 and $T$ stands for skyscrapers.
 An example city coding could look like in Listing~\ref{city_coding}
 \begin{lstlisting}[float,frame=lines,caption=Example city coding, label=city_coding]
@@ -239,7 +239,7 @@ Another valid option for creating a street network is the use of Voronoi diagram
 Voronoi diagrams have the nice property that between every edge there is always a path.
 In our case the diagram is a partion of the 2D euclidean plane.
 Every element of the partion is a voronoi cell.
-A voronoi diagram of a  $ P \subset \mathbb{R}^2 $ and a given distance 
+A voronoi diagram of a  $ P \subset \mathbb{R}^2 $ and a given distance
 function $d$ is defined as a set $V=\lbrace V_k \mid k \in [0,1,\ldots,\mid P\mid-1] \rbrace$ where:
 
 \[
@@ -256,7 +256,7 @@ function $d$ is defined as a set $V=\lbrace V_k \mid k \in [0,1,\ldots,\mid P\mi
 
 Our general idea now is,  to create a voronoi diagram for some random points
 and to use the edges as streets in our city. Further we want to fill up the
-space inside the cells with buildings. 
+space inside the cells with buildings.
 
 We  start with a set of random point $P$ (uniform distribution) of a given
 size $n$. The next step would be to create the voronoi diagram $V$ of $P$.

@@ -11,6 +11,7 @@ from pygame.locals import *
 import matplotlib.pyplot as plt
 import bezier
 
+# Initial data
 TILESIZE = 6
 WIDTH    = 110
 HEIGHT   = 110
@@ -394,7 +395,7 @@ fix_mainstreet(map)
 street_density = 0.1
 number_street_builder = 5 # Number of outgoing streets/ starting agents
 number_house_builder = 5 # Number of agents that build houses
-street_builder_lifetime = 200 # How long does one streetbuilder life
+street_builder_lifetime = 200 # How long does one streetbuilder live
 house_builder_lifetime = 15
 
 street_agents = []
@@ -412,9 +413,9 @@ runtime = 0
 
 # Plot scores
 plt.rcParams['figure.figsize'] = [10, 10]
-#plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
+plt.matshow(scoremap, interpolation='nearest', cmap = 'jet')
 #plt.matshow(cityscore, interpolation='nearest', cmap = 'Blues')
-plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
+#plt.matshow(builderscore, interpolation='nearest', cmap = 'jet')
 plt.colorbar()
 plt.show()
 
